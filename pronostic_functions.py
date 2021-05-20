@@ -23,6 +23,7 @@ import seaborn as sns
 FIG_SIZE = (18,10)
 FONT_SIZE = 12
 PERCENT_TRAIN = 0.8
+SIZE_TITLE = 18
 
 
 def obtener_estadisticos(X):
