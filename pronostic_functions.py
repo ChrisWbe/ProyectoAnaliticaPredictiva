@@ -227,9 +227,11 @@ def modelo_perceptron_multicapa(df):
 def modelo_perceptron_multicapa_sin_transformaciones(df, P):
 
     def computar_modelo():
-        n = np.random.rand(len(df)) < 0.8 
-        df_train = df.servicios[n]
-        df_test = df.servicios[~n]
+#         n = np.random.rand(len(df)) < 0.8 
+#         df_train = df.servicios[n]
+#         df_test = df.servicios[~n]
+        size = int(len(df)*PERCENT_TRAIN)
+        df_train, df_test=df[0:size],df[size:len(df)]
 
         # crea el transformador
         scaler = MinMaxScaler()
@@ -282,9 +284,11 @@ def modelo_perceptron_multicapa_sin_transformaciones(df, P):
 
         y_m1 = computar_modelo()
 
-        n = np.random.rand(len(df)) < 0.8 
-        df_train = df.servicios[n]
-        df_test = df.servicios[~n]
+#         n = np.random.rand(len(df)) < 0.8 
+#         df_train = df.servicios[n]
+#         df_test = df.servicios[~n]
+        size = int(len(df)*PERCENT_TRAIN)
+        df_train, df_test=df[0:size],df[size:len(df)]
 
         #P = 8
 
@@ -293,19 +297,21 @@ def modelo_perceptron_multicapa_sin_transformaciones(df, P):
         e_y_m1_test = y_m1[len(e_y_m1_train):]
 
         print("Mean absolute error: %.2f" % mean_absolute_error(e_train, e_y_m1_train)) 
-        print("Mean_absolute_error: %.2f" % mean_absolute_error(e_train, e_y_m1_train))
+        print("Mean_absolute_error: %.2f" % mean_absolute_error(df_test, e_y_m1_test))
         print("Mean squared error: %.2f" % mean_squared_error(e_train, e_y_m1_train))# MSE
-        print("Mean squared error: %.2f" % mean_squared_error(e_train, e_y_m1_train))# MSE
+        print("Mean squared error: %.2f" % mean_squared_error(df_test, e_y_m1_test))# MSE
         print("Variance score: %.2f" % r2_score(e_train, e_y_m1_train)) # R2
-        print("Variance score: %.2f" % r2_score(e_train, e_y_m1_train)) # R2
+        print("Variance score: %.2f" % r2_score(df_test, e_y_m1_test)) # R2
 
     def graficar_modelo():
 
         y_m1 = computar_modelo()
 
-        n = np.random.rand(len(df)) < 0.8 
-        df_train = df.servicios[n]
-        df_test = df.servicios[~n]
+#         n = np.random.rand(len(df)) < 0.8 
+#         df_train = df.servicios[n]
+#         df_test = df.servicios[~n]
+        size = int(len(df)*PERCENT_TRAIN)
+        df_train, df_test=df[0:size],df[size:len(df)]
 
         #P = 8
 
