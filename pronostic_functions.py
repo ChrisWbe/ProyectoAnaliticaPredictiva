@@ -181,7 +181,7 @@ def model_adaline_optimizado(df):
   ini=int(input("Seleccione el número de inicio para probar P: "))
   fin=int(input("Seleccione el número de fin para probar P: "))
   global popt
-  for lm in range(ini,fin):
+  for lm in range(ini,fin+1):
       ciclo, tend = sm.tsa.filters.hpfilter(df["servicios"])
       df['tend'] = tend
       #df[["servicios","tend"]].plot(figsize=(18, 5),fontsize=12)
