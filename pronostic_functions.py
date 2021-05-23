@@ -167,7 +167,7 @@ def model_adaline_opt(df):
     plt.plot(predlist[:-1], '.-r')
     plt.grid()
 
-    plt.vlines([int(len(data)*0.80)], ls='--', color='blue', ymin=min(s), ymax=max(s))
+    plt.vlines([int(len(data)*PERCENT_TRAIN)], ls='--', color='blue', ymin=min(s), ymax=max(s))
     plt.show()
 ###############################################################################################################################333333333    
 def model_adaline_optimizado(df):
