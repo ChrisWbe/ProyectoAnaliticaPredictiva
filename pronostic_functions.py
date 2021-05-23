@@ -23,7 +23,7 @@ import seaborn as sns
 
 FIG_SIZE = (18,10)
 FONT_SIZE = 12
-PERCENT_TRAIN = 0.70
+PERCENT_TRAIN = 0.90
 SIZE_TITLE = 18
 
 
@@ -54,10 +54,11 @@ def obtener_estadisticos(X):
     print(pacf_plot(X));   
 
 def obtener_datos(ciudad):
+    global df #Nuevo (Diego)
     df=pd.read_csv(ciudad+".csv",sep=';')#,parse_dates=['Fecha'],index_col=['Fecha'])
     df=df.dropna()
     obtener_estadisticos(df['servicios'])
-    return df
+    #return df
 
 def model_arima(df):
     p_value =  int(input('Ingrese valor p: '))
@@ -86,7 +87,7 @@ def model_arima(df):
     plt.plot(df_test['servicios'],'.-k')
     plt.plot(df_test['prediction'],'.-r')
     
-def model_adaline(df):
+def model_adaline_opt(df):
     ciclo, tend = sm.tsa.filters.hpfilter(df["servicios"])
     df['tend'] = tend
     #df[["servicios","tend"]].plot(figsize=(18, 5),fontsize=12)
@@ -122,7 +123,7 @@ def model_adaline(df):
     optimal_sse = None
 
     P = popt
-    len_train=int(len(data)*0.90)
+    len_train=int(len(data)*PERCENT_TRAIN)
     for learning_rate in np.linspace(start=0.00000000001, stop=0.000001, num=100):
         adaline = AdalineTS(P=P,learning_rate=learning_rate)
         forecasts = []
@@ -160,10 +161,11 @@ def model_adaline(df):
         errores_test.append(error)
     EPF=round(np.mean(errores_test),2)
     print("Con P = {}, el error abs promedio de entrenamiento es: {}, y el error abs promedio de pronóstico: {}".format(popt,EPE,EPF))
-    plt.figure(figsize=(20,6))
-    plt.plot(datalist[P:],'.-k', lw=1, ms=5,alpha=1)
-    #plt.plot(tend, '.-g', lw=1, ms=5, alpha=0.9)
-    plt.plot(predlist[:-1], '.-r', lw=1, ms=5, alpha=0.8)
+    plt.figure(figsize=(14, 5))
+    plt.plot(datalist[P:],'.-k')
+    plt.title("Ajuste del modelo Adaline", fontdict=None, size=18)
+    plt.plot(predlist[:-1], '.-r')
+    plt.grid()
 
     plt.vlines([int(len(data)*0.80)], ls='--', color='blue', ymin=min(s), ymax=max(s))
     plt.show()
@@ -209,7 +211,7 @@ def model_adaline_optimizado(df):
       optimal_sse = None
 
       P = lm
-      len_train=int(len(data)*0.90)
+      len_train=int(len(data)*PERCENT_TRAIN)
       for learning_rate in np.linspace(start=0.00000000001, stop=0.000001, num=100):
           adaline = AdalineTS(P=P,learning_rate=learning_rate)
           forecasts = []
@@ -252,6 +254,7 @@ def model_adaline_optimizado(df):
       print("Con P = {} el error abs promedio de entrenamiento: {}, y el error abs promedio de pronóstico: {}".format(lm,EPE,EPF))
   print("El P óptimo es: {}".format(popt))
   model_adaline_opt(df)
+
 
 def modelo_perceptron_multicapa(df):
     df_train = df.servicios[0:299]
