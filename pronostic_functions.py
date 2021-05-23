@@ -121,8 +121,8 @@ def model_adaline(df):
     optimal_learning_rate = None
     optimal_sse = None
 
-    P = int(input("Ingrese el valor p: "))
-    len_train=int(len(data)*0.80)
+    P = popt
+    len_train=int(len(data)*0.90)
     for learning_rate in np.linspace(start=0.00000000001, stop=0.000001, num=100):
         adaline = AdalineTS(P=P,learning_rate=learning_rate)
         forecasts = []
@@ -140,13 +140,118 @@ def model_adaline(df):
         adaline.fit(z)
     s = [m + n for m,n in zip(data[P:len(data)-1], forecasts[P:])]
     #s = data[0:P+1] + s
+    predlist=[]
+    for a in s:
+      predlist.append(int(a))
+    datalist=[]
+    for i in data:
+      datalist.append(i)
+    errores_train=[]
+    for i in datalist[P:len_train+P]:
+      for j in predlist[:len_train]:
+        error=abs(i-j)
+        errores_train.append(error)
+    EPE=EPF=round(np.mean(errores_train),2)
+
+    errores_test=[]
+    for i in datalist[len_train+P:-1]:
+      for j in predlist[len_train:]:
+        error=abs(i-j)
+        errores_test.append(error)
+    EPF=round(np.mean(errores_test),2)
+    print("Con P = {}, el error abs promedio de entrenamiento es: {}, y el error abs promedio de pronóstico: {}".format(popt,EPE,EPF))
     plt.figure(figsize=(20,6))
-    plt.plot(data[P:-1],'.-k', lw=1, ms=5,alpha=1)
+    plt.plot(datalist[P:],'.-k', lw=1, ms=5,alpha=1)
     #plt.plot(tend, '.-g', lw=1, ms=5, alpha=0.9)
-    plt.plot(s, '.-r', lw=1, ms=5, alpha=0.8)
+    plt.plot(predlist[:-1], '.-r', lw=1, ms=5, alpha=0.8)
 
     plt.vlines([int(len(data)*0.80)], ls='--', color='blue', ymin=min(s), ymax=max(s))
     plt.show()
+###############################################################################################################################333333333    
+def model_adaline_optimizado(df):
+  optimal_EPF=None
+  ini=int(input("Seleccione el número de inicio para probar P: "))
+  fin=int(input("Seleccione el número de fin para probar P: "))
+  global popt
+  for lm in range(ini,fin+1):
+      ciclo, tend = sm.tsa.filters.hpfilter(df["servicios"])
+      df['tend'] = tend
+      #df[["servicios","tend"]].plot(figsize=(18, 5),fontsize=12)
+      #legend = plt.legend()
+      #legend.prop.set_size(14);
+      data=df["servicios"]
+      u = np.array(data[1:len(data)]) - np.array(data[0:len(data) - 1])
+      class AdalineTS:
+          def __init__(self,P=None,learning_rate=0.001):# número de retardos a usar, # tasa de aprendizaje
+              self.P = P
+              self.learning_rate = learning_rate
+              self.X = []
+              self.coef_ = [0.] * P
+              self.intercept_ = 0.
+
+          def predict(self):
+              if len(self.X) < self.P:
+                  return None
+              X = np.array(self.X)
+              u = np.dot(X, self.coef_) + self.intercept_
+              return u
+
+          def fit(self, d):
+              y = self.predict()
+              if y is not None:
+                  e = d - y
+                  self.coef_ += 2 * self.learning_rate * e * np.array(self.X)
+                  self.intercept_ += 2 * self.learning_rate * e
+              self.X.append(d)
+              if len(self.X) > self.P:
+                  self.X.pop(0)
+      optimal_learning_rate = None
+      optimal_sse = None
+
+      P = lm
+      len_train=int(len(data)*0.90)
+      for learning_rate in np.linspace(start=0.00000000001, stop=0.000001, num=100):
+          adaline = AdalineTS(P=P,learning_rate=learning_rate)
+          forecasts = []
+          for z in u[0:len_train]:
+              forecasts.append(adaline.predict())
+              adaline.fit(z)
+          sse = sum([(a-b)**2 for a,b in zip(u[P:len_train], forecasts[P:])])
+          if optimal_sse is None or sse < optimal_sse:
+              optimal_sse = sse
+              optimal_learning_rate = learning_rate
+      adaline = AdalineTS(P=P,learning_rate=optimal_learning_rate)
+      forecasts = []
+      for z in u:
+          forecasts.append(adaline.predict())
+          adaline.fit(z)
+      s = [m + n for m,n in zip(data[P:len(data)-1], forecasts[P:])]
+      #s = data[0:P+1] + s
+      predlist=[]
+      for a in s:
+        predlist.append(int(a))
+      datalist=[]
+      for i in data:
+        datalist.append(i)
+      errores_train=[]
+      for i in datalist[P:len_train+P]:
+        for j in predlist[:len_train]:
+          error=abs(i-j)
+          errores_train.append(error)
+      EPE=round(np.mean(errores_train),2)
+
+      errores_test=[]
+      for i in datalist[len_train+P:-1]:
+        for j in predlist[len_train:]:
+          error=abs(i-j)
+          errores_test.append(error)
+      EPF=round(np.mean(errores_test),2)
+      if optimal_EPF is None or EPF < optimal_EPF:
+        optimal_EPF = EPF
+        popt=lm
+      print("Con P = {} el error abs promedio de entrenamiento: {}, y el error abs promedio de pronóstico: {}".format(lm,EPE,EPF))
+  print("El P óptimo es: {}".format(popt))
+  model_adaline_opt(df)
 
 def modelo_perceptron_multicapa(df):
     df_train = df.servicios[0:299]
@@ -220,9 +325,11 @@ def modelo_perceptron_multicapa_sin_transformaciones(df):
     P = int(input('Ingrese valor p: '))
 
     def computar_modelo():
-        n = np.random.rand(len(df)) < 0.8 
-        df_train = df.servicios[n]
-        df_test = df.servicios[~n]
+#         n = np.random.rand(len(df)) < 0.8 
+#         df_train = df.servicios[n]
+#         df_test = df.servicios[~n]
+        size = int(len(df)*PERCENT_TRAIN)
+        df_train, df_test=df[0:size],df[size:len(df)]
 
         # crea el transformador
         scaler = MinMaxScaler()
@@ -275,9 +382,11 @@ def modelo_perceptron_multicapa_sin_transformaciones(df):
 
         y_m1 = computar_modelo()
 
-        n = np.random.rand(len(df)) < 0.8 
-        df_train = df.servicios[n]
-        df_test = df.servicios[~n]
+#         n = np.random.rand(len(df)) < 0.8 
+#         df_train = df.servicios[n]
+#         df_test = df.servicios[~n]
+        size = int(len(df)*PERCENT_TRAIN)
+        df_train, df_test=df[0:size],df[size:len(df)]
 
         #P = 8
 
@@ -286,19 +395,21 @@ def modelo_perceptron_multicapa_sin_transformaciones(df):
         e_y_m1_test = y_m1[len(e_y_m1_train):]
 
         print("Mean absolute error: %.2f" % mean_absolute_error(e_train, e_y_m1_train)) 
-        print("Mean_absolute_error: %.2f" % mean_absolute_error(e_train, e_y_m1_train))
+        print("Mean_absolute_error: %.2f" % mean_absolute_error(df_test, e_y_m1_test))
         print("Mean squared error: %.2f" % mean_squared_error(e_train, e_y_m1_train))# MSE
-        print("Mean squared error: %.2f" % mean_squared_error(e_train, e_y_m1_train))# MSE
+        print("Mean squared error: %.2f" % mean_squared_error(df_test, e_y_m1_test))# MSE
         print("Variance score: %.2f" % r2_score(e_train, e_y_m1_train)) # R2
-        print("Variance score: %.2f" % r2_score(e_train, e_y_m1_train)) # R2
+        print("Variance score: %.2f" % r2_score(df_test, e_y_m1_test)) # R2
 
     def graficar_modelo():
 
         y_m1 = computar_modelo()
 
-        n = np.random.rand(len(df)) < 0.8 
-        df_train = df.servicios[n]
-        df_test = df.servicios[~n]
+#         n = np.random.rand(len(df)) < 0.8 
+#         df_train = df.servicios[n]
+#         df_test = df.servicios[~n]
+        size = int(len(df)*PERCENT_TRAIN)
+        df_train, df_test=df[0:size],df[size:len(df)]
 
         #P = 8
 
