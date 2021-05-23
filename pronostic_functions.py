@@ -15,6 +15,7 @@ from sklearn.metrics import mean_absolute_error
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import acf, pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
+from statsmodels.tsa.arima_model import ARIMA
 import matplotlib.pyplot as plt
 from math import sqrt
 import numpy as np
@@ -22,7 +23,7 @@ import seaborn as sns
 
 FIG_SIZE = (18,10)
 FONT_SIZE = 12
-PERCENT_TRAIN = 0.95
+PERCENT_TRAIN = 0.70
 SIZE_TITLE = 18
 
 
@@ -58,42 +59,33 @@ def obtener_datos(ciudad):
     obtener_estadisticos(df['servicios'])
     return df
 
-def model_arima(df, p_value, q_value):
-    #Grafia de datos y tendencia
-    ciclo, tend = sm.tsa.filters.hpfilter(df["servicios"])
-    df['tend'] = tend
-    df[["servicios","tend"]].plot(figsize=FIG_SIZE,fontsize=FONT_SIZE)
-    legend = plt.legend()
-    legend.prop.set_size(14);
-    
+def model_arima(df):
+    p_value =  int(input('Ingrese valor p: '))
     #Separación datos de entrenamiento y test
     size = int(len(df)*PERCENT_TRAIN)
     df_train, df_test=df[0:size],df[size:len(df)]
 
     #Entrenamiento del modelo
-    modelo = sm.tsa.ARIMA(df_train["servicios"], order=(int(p_value), 0, int(q_value)))  
-    resultados = modelo.fit(disp=-1)
+    modelo = ARIMA(df_train["servicios"], order=(p_value, 0, 1))  
+    resultados = modelo.fit()
 
-    #Muestra de errores y resumen
-    residuals = pd.DataFrame(resultados.resid) #Errores residuales, puede haber información de tendencia que el modelo aun no captura
-    residuals.plot(figsize=FIG_SIZE,fontsize=FONT_SIZE) 
-    plt.show()
-    residuals.plot(kind='kde',figsize=FIG_SIZE,fontsize=FONT_SIZE) #densidad de valores de error residual, sugiere errores gaussianos
-    plt.show()
-    print(residuals.describe())
-    print(resultados.summary())
     df_train['pronostico'] = resultados.fittedvalues  
     df_train=df_train.dropna()
-    df_train[['servicios', 'pronostico']].plot(figsize=FIG_SIZE,fontsize=FONT_SIZE)
-    plt.legend().prop.set_size(14);
-
+    plt.figure(figsize=FIG_SIZE)
+    plt.title("Ajuste Modelo ARIMA", fontdict=None, size=SIZE_TITLE)
+    plt.plot(df_train['servicios'],'.-k')
+    plt.plot(df_train['pronostico'],'-r')
+    print("Mean absolute error: %.2f" % mean_absolute_error(df_train['servicios'], df_train['pronostico']))
+    print("Mean squared error: %.2f" % mean_squared_error(df_train['servicios'], df_train['pronostico']))# MSE
+    print("Variance score: %.2f" % r2_score(df_train['servicios'], df_train['pronostico'])) # R2
+    
+    #Predicción
     df_test['prediction'] = resultados.predict(len(df_train),len(df)-1)
-    rmse= sqrt(mean_squared_error(df_test['servicios'],df_test['prediction']))
-    print(rmse)
-
-    #Se imprime la predicción con los datos de test
-    df_test[['servicios','prediction']].plot(figsize=FIG_SIZE,fontsize=FONT_SIZE)
-
+    plt.figure(figsize=FIG_SIZE)
+    plt.title("Predicción (TEST y Datos reales)", fontdict=None, size=SIZE_TITLE)
+    plt.plot(df_test['servicios'],'.-k')
+    plt.plot(df_test['prediction'],'.-r')
+    
 def model_adaline(df):
     ciclo, tend = sm.tsa.filters.hpfilter(df["servicios"])
     df['tend'] = tend
@@ -224,7 +216,8 @@ def modelo_perceptron_multicapa(df):
     plt.grid()
 
 
-def modelo_perceptron_multicapa_sin_transformaciones(df, P):
+def modelo_perceptron_multicapa_sin_transformaciones(df):
+    P = int(input('Ingrese valor p: '))
 
     def computar_modelo():
         n = np.random.rand(len(df)) < 0.8 
