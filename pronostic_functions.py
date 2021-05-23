@@ -21,7 +21,7 @@ from math import sqrt
 import numpy as np
 import seaborn as sns
 
-FIG_SIZE = (18,10)
+FIG_SIZE = (14, 5)
 FONT_SIZE = 12
 PERCENT_TRAIN = 0.90
 SIZE_TITLE = 18
