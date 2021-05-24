@@ -13,6 +13,7 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.metrics import confusion_matrix
 from sklearn.metrics import mean_absolute_error
 import statsmodels.api as sm
+import statsmodels
 from statsmodels.tsa.stattools import acf, pacf
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 from statsmodels.tsa.arima_model import ARIMA
@@ -51,17 +52,21 @@ def obtener_estadisticos(X):
         plt.stem(range(len(pacf_X)), pacf_X, use_line_collection=True)
         plt.title("PACF Tendencia de la Función", fontdict=None, size=18)
         plt.grid()
-    print(pacf_plot(X));   
-
+    print(pacf_plot(X));  
+    
 def obtener_datos(ciudad):
-    global df #Nuevo (Diego)
+    #global df #Nuevo (Diego)
+
     df=pd.read_csv(ciudad+".csv",sep=';')#,parse_dates=['Fecha'],index_col=['Fecha'])
     df=df.dropna()
     obtener_estadisticos(df['servicios'])
-    #return df
+
+    return df
 
 def model_arima(df):
-    p_value =  int(input('Ingrese valor p: '))
+    
+    
+    p_value = int(input('Ingrese valor p para modelo ARIMA: '))
     #Separación datos de entrenamiento y test
     size = int(len(df)*PERCENT_TRAIN)
     df_train, df_test=df[0:size],df[size:len(df)]
@@ -70,22 +75,31 @@ def model_arima(df):
     modelo = ARIMA(df_train["servicios"], order=(p_value, 0, 1))  
     resultados = modelo.fit()
 
-    df_train['pronostico'] = resultados.fittedvalues  
-    df_train=df_train.dropna()
+    df['pronostico'] = resultados.predict(0,len(df)-1)
+    test = resultados.predict(len(df_train),len(df)-1)
+    
+    df=df.dropna()
     plt.figure(figsize=FIG_SIZE)
     plt.title("Ajuste Modelo ARIMA", fontdict=None, size=SIZE_TITLE)
-    plt.plot(df_train['servicios'],'.-k')
-    plt.plot(df_train['pronostico'],'-r')
-    print("Mean absolute error: %.2f" % mean_absolute_error(df_train['servicios'], df_train['pronostico']))
-    print("Mean squared error: %.2f" % mean_squared_error(df_train['servicios'], df_train['pronostico']))# MSE
-    print("Variance score: %.2f" % r2_score(df_train['servicios'], df_train['pronostico'])) # R2
+    plt.plot(df['servicios'],'.-k')
+    plt.plot(df['pronostico'],'-r')
+    plt.plot([len(df.servicios) - len(df_test), len(df.servicios) - len(df_test)], [min(df.servicios), max(df.servicios)], "--", linewidth=2)
+    print("Mean absolute error: %.2f" % mean_absolute_error(df_test['servicios'], test))
+    print("Mean absolute error: %.2f" % mean_absolute_error(df_train['servicios'],df['pronostico'][:size]))
+    print("Mean squared error: %.2f" % mean_squared_error(df_test['servicios'], test))# MSE
+    print("Mean squared error: %.2f" %mean_squared_error(df_train['servicios'], df['pronostico'][:size]))# MSE
     
-    #Predicción
-    df_test['prediction'] = resultados.predict(len(df_train),len(df)-1)
-    plt.figure(figsize=FIG_SIZE)
-    plt.title("Predicción (TEST y Datos reales)", fontdict=None, size=SIZE_TITLE)
-    plt.plot(df_test['servicios'],'.-k')
-    plt.plot(df_test['prediction'],'.-r')
+    
+    new_row = {
+        'modelo':'arima',
+        'mae_test':mean_absolute_error(df_test['servicios'], test), 
+        'mae_train':mean_absolute_error(df_train['servicios'],df['pronostico'][:size]),  
+        'mse_test':mean_squared_error(df_test['servicios'], test), 
+        'mse_train':mean_squared_error(df_train['servicios'], df['pronostico'][:size])
+    }
+    return new_row
+
+    
     
 def model_adaline_opt(df):
     ciclo, tend = sm.tsa.filters.hpfilter(df["servicios"])
@@ -160,7 +174,24 @@ def model_adaline_opt(df):
         error=abs(i-j)
         errores_test.append(error)
     EPF=round(np.mean(errores_test),2)
-    print("Con P = {}, el error abs promedio de entrenamiento es: {}, y el error abs promedio de pronóstico: {}".format(popt,EPE,EPF))
+    error_mse_trains=[]
+    for i in datalist[P:len_train+P]:
+      for j in predlist[:len_train]:
+        error=(abs(i-j))**2
+        error_mse_trains.append(error)
+    mse_train=round(np.mean(error_mse_trains),2)
+
+    error_mse_tests=[]
+    for i in datalist[len_train+P:-1]:
+      for j in predlist[len_train:]:
+        error=(abs(i-j))**2
+        error_mse_tests.append(error)
+    mse_test=round(np.mean(error_mse_tests),2)
+
+    print("Mean Absolute error test: {}".format(EPF))
+    print("Mean Absolute error train: {}".format(EPE))
+    print("Mean Squared error test: {}".format(mse_test))
+    print("Mean Squared error train: {}".format(mse_train))
     plt.figure(figsize=(14, 5))
     plt.plot(datalist[P:],'.-k')
     plt.title("Ajuste del modelo Adaline", fontdict=None, size=18)
@@ -169,6 +200,16 @@ def model_adaline_opt(df):
 
     plt.vlines([int(len(data)*PERCENT_TRAIN)], ls='--', color='blue', ymin=min(s), ymax=max(s))
     plt.show()
+    
+    new_row = {
+        'modelo':'adaline',
+        'mae_test':EPF, 
+        'mae_train':EPE,  
+        'mse_test':mse_test, 
+        'mse_train':mse_train
+    }
+    return new_row
+
 ###############################################################################################################################333333333    
 def model_adaline_optimizado(df):
   optimal_EPF=None
@@ -253,51 +294,62 @@ def model_adaline_optimizado(df):
         popt=lm
       print("Con P = {} el error abs promedio de entrenamiento: {}, y el error abs promedio de pronóstico: {}".format(lm,EPE,EPF))
   print("El P óptimo es: {}".format(popt))
-  model_adaline_opt(df)
+  return model_adaline_opt(df)
 
 
 def modelo_perceptron_multicapa(df):
-    df_train = df.servicios[0:299]
-    df_test = df.servicios[299:]
+    
 
     scaler = MinMaxScaler() # crea el transformador
-    df_train_scaled = scaler.fit_transform(np.array(df_train).reshape(-1, 1)) # escala la serie  # z es un array de listas como efecto
+    df_train_scaled = scaler.fit_transform(np.array(df.servicios).reshape(-1, 1)) # escala la serie  # z es un array de listas como efecto
     df_train_scaled = [u[0] for u in df_train_scaled]# z es un array de listas como efecto
-
     data_d1 = [df_train_scaled[t] - df_train_scaled[t - 1] for t in range(1, len(df_train_scaled))] # Se remueve la tendencia
-
     data_d1d12 = [data_d1[t] - data_d1[t - 7] for t in range(7, len(data_d1))] # Para remover la componente cíclica cada 8 días
+    
+    df_train = data_d1d12[0:int(len(data_d1d12)*PERCENT_TRAIN)]
+    df_test = data_d1d12[int(len(data_d1d12)*PERCENT_TRAIN):]
 
     #Se contruye una matriz de regresores, Ya que la implementación dispobible en sklearn es para modelos de regresión, se debe armar una matrix donde las variables independientes son zt−1, …, zt−P y la variable dependiente es zt.
 
-    P = int(input("Ingrese el valor p: "))
+    P = popt#int(input("Ingrese el valor p: "))
     X_train_regr = []
+    X_test_regr = []
+    X_regr = []
 
     for t in range(P - 1, len(data_d1d12) - 1):
-        X_train_regr.append([data_d1d12[t - n] for n in range(P)])
+        X_regr.append([data_d1d12[t - n] for n in range(P)])
+        
+    for t in range(P - 1, len(df_train) - 1):
+        X_train_regr.append([df_train[t - n] for n in range(P)])
+        
+    for t in range(P - 1, len(df_test) - 1):
+        X_test_regr.append([df_test[t - n] for n in range(P)])
 
-    d = data_d1d12[P:]
+    d = df_train[P:]
 
     #Modelo de percdeptron multicalpa
 
-    H = 4 # Se escoge arbitrariamente el numero de neuronas
+    H = 2 # Se escoge arbitrariamente el numero de neuronas
     np.random.seed(123456)
 
     mlp = MLPRegressor(
         hidden_layer_sizes=(H, ),
         #activation = 'logistic',
-        activation ='logistic',
+        activation ='tanh',
         learning_rate = 'adaptive',
         momentum = 0.0,
-        learning_rate_init = 0.002,
+        learning_rate_init = 20,
         max_iter = 100000)
 
     mlp.fit(X_train_regr, d)   # Entrenamiento
 
-    y_d1d12_m2 = mlp.predict(X_train_regr)  # Pronostico
+    y_d1d12_m2 = mlp.predict(X_regr)  # Pronostico
+    y_d1d12_m2_test =  mlp.predict(X_test_regr)
 
     #  transformaciones inversas a las realizadas
     y_d1d12_m2 = data_d1d12[0:P] + y_d1d12_m2.tolist()
+    
+    y_d1d12_m2_test = df_test[0:P] + y_d1d12_m2_test.tolist()
 
     y_d1_m2 = [y_d1d12_m2[t] + data_d1[t] for t in range(len(y_d1d12_m2))] # inversa de la remoción del ciclo 
     y_d1_m2 = data_d1[0:7] + y_d1_m2
@@ -307,32 +359,42 @@ def modelo_perceptron_multicapa(df):
 
     y_m2 = scaler.inverse_transform([[u] for u in y_m2]) # Desescalamos los datos 
     y_m2 = [u[0] for u in y_m2.tolist()] 
+    
+    print("Mean absolute error: %.2f" % mean_absolute_error(df.servicios[:-len(df_test)], y_m2[:-len(df_test)]))
+    print("Mean_absolute_error: %.2f" % mean_absolute_error(df.servicios[-len(df_test):],  y_m2[-len(df_test):]))
 
-    print("Mean absolute error: %.2f" % mean_absolute_error(df_train, y_m2))
-    #print("Mean_absolute_error: %.2f" % mean_absolute_error(df_test, mlp.predict(df_test))
+    print("Mean squared error: %.2f" % mean_squared_error(df.servicios[:-len(df_test)], y_m2[:-len(df_test)]))# MSE
+    print("Mean squared error: %.2f" % mean_squared_error(df.servicios[-len(df_test):], y_m2[-len(df_test):]))# MSE
 
-    print("Mean squared error: %.2f" % mean_squared_error(df_train, y_m2))# MSE
-    #print("Mean squared error: %.2f" % mean_squared_error(df_test, y_m2))# MSE
-
-    print("Variance score: %.2f" % r2_score(df_train, y_m2)) # R2
-    #print("Variance score: %.2f" % r2_score(df_test, y_m2)) # R2
+    #print("Variance score: %.2f" % r2_score(df.servicios, y_m2)) # R2
+    #print("Variance score: %.2f" % r2_score(df_test,  mlp.predict(df_test))) # R2
 
     plt.figure(figsize=(14, 5))
-    plt.plot(df_train, ".-k")
+    plt.plot(df.servicios, ".-k")
     plt.plot(y_m2, "-r")
     plt.title("Ajuste del Modelo Perceptrón Multicapa", fontdict=None, size=18)
+    plt.plot([len(df.servicios) - len(df_test), len(df.servicios) - len(df_test)], [min(df.servicios), max(df.servicios)], "--", linewidth=2)
     plt.grid()
+          
+    new_row = {
+        'modelo':'perceptron_multicapa',
+        'mae_train':mean_absolute_error(df.servicios[:len(df_train)], y_m2[:len(df_train)]), 
+        'mae_test':mean_absolute_error(df.servicios[-len(df_test):],  y_m2[-len(df_test):]),  
+        'mse_test': mean_squared_error(df.servicios[:-len(df_test)], y_m2[:-len(df_test)]), 
+        'mse_train':mean_squared_error(df.servicios[:len(df_train)], y_m2[:len(df_train)])
+    }
+    return new_row
 
 
 def modelo_perceptron_multicapa_sin_transformaciones(df):
-    P = int(input('Ingrese valor p: '))
+    P = popt#int(input('Ingrese valor p: '))
 
     def computar_modelo():
-#         n = np.random.rand(len(df)) < 0.8 
-#         df_train = df.servicios[n]
-#         df_test = df.servicios[~n]
-        size = int(len(df)*PERCENT_TRAIN)
-        df_train, df_test=df[0:size],df[size:len(df)]
+        n = np.random.rand(len(df)) < PERCENT_TRAIN
+        df_train = df.servicios[n]
+        df_test = df.servicios[~n]
+        #size = int(len(df)*PERCENT_TRAIN)
+        #df_train, df_test=df[0:size],df[size:len(df)]
 
         # crea el transformador
         scaler = MinMaxScaler()
@@ -385,11 +447,11 @@ def modelo_perceptron_multicapa_sin_transformaciones(df):
 
         y_m1 = computar_modelo()
 
-#         n = np.random.rand(len(df)) < 0.8 
-#         df_train = df.servicios[n]
-#         df_test = df.servicios[~n]
-        size = int(len(df)*PERCENT_TRAIN)
-        df_train, df_test=df[0:size],df[size:len(df)]
+        n = np.random.rand(len(df)) < PERCENT_TRAIN
+        df_train = df.servicios[n]
+        df_test = df.servicios[~n]
+        #size = int(len(df)*PERCENT_TRAIN)
+        #df_train, df_test=df[0:size],df[size:len(df)]
 
         #P = 8
 
@@ -401,18 +463,20 @@ def modelo_perceptron_multicapa_sin_transformaciones(df):
         print("Mean_absolute_error: %.2f" % mean_absolute_error(df_test, e_y_m1_test))
         print("Mean squared error: %.2f" % mean_squared_error(e_train, e_y_m1_train))# MSE
         print("Mean squared error: %.2f" % mean_squared_error(df_test, e_y_m1_test))# MSE
-        print("Variance score: %.2f" % r2_score(e_train, e_y_m1_train)) # R2
-        print("Variance score: %.2f" % r2_score(df_test, e_y_m1_test)) # R2
+        #print("Variance score: %.2f" % r2_score(e_train, e_y_m1_train)) # R2
+        #print("Variance score: %.2f" % r2_score(df_test, e_y_m1_test)) # R2
+        
+        return mean_absolute_error(e_train, e_y_m1_train), mean_absolute_error(df_test, e_y_m1_test), mean_squared_error(e_train, e_y_m1_train), mean_squared_error(df_test, e_y_m1_test)
 
     def graficar_modelo():
 
         y_m1 = computar_modelo()
 
-#         n = np.random.rand(len(df)) < 0.8 
-#         df_train = df.servicios[n]
-#         df_test = df.servicios[~n]
-        size = int(len(df)*PERCENT_TRAIN)
-        df_train, df_test=df[0:size],df[size:len(df)]
+        n = np.random.rand(len(df)) < PERCENT_TRAIN
+        df_train = df.servicios[n]
+        df_test = df.servicios[~n]
+        #size = int(len(df)*PERCENT_TRAIN)
+        #df_train, df_test=df[0:size],df[size:len(df)]
 
         #P = 8
 
@@ -424,4 +488,12 @@ def modelo_perceptron_multicapa_sin_transformaciones(df):
         plt.plot([len(df.servicios) - len(df_test), len(df.servicios) - len(df_test)], [min(df.servicios), max(df.servicios)], "--", linewidth=2)
 
     graficar_modelo()
-    computar_metricas()
+    mae_train, mae_test, mse_train, mse_test = computar_metricas()
+    new_row = {
+        'modelo':'perceptron_multicapa_sin_transformaciones',
+        'mae_test':mae_test, 
+        'mae_train':mae_train,  
+        'mse_test':mse_test, 
+        'mse_train':mse_train
+    }
+    return new_row
